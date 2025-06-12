@@ -5,78 +5,81 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * Lớp User ánh xạ bảng Users, lưu thông tin người dùng (khách, chủ trọ, nhân viên, quản trị viên).
+ */
 @Data
 @Entity
 @Table(name = "Users")
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
+    private Integer id; // Mã người dùng
 
     @Column(name = "full_name")
-    private String fullName;
+    private String fullName; // Họ và tên
 
     @Column(unique = true)
-    private String email;
+    private String email; // Email duy nhất
 
-    private String password;
+    private String password; // Mật khẩu (nên mã hóa)
 
-    private String phone;
+    private String phone; // Số điện thoại
 
     @ManyToOne
     @JoinColumn(name = "role_id")
-    private Role role;
+    private Role role; // Vai trò người dùng
 
-    private Boolean status = true;
+    private Boolean status = true; // Trạng thái hoạt động
 
     @Column(name = "created_at")
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime createdAt = LocalDateTime.now(); // Thời gian tạo
 
     @Column(name = "oauth_provider")
-    private String oauthProvider;
+    private String oauthProvider; // Nhà cung cấp OAuth (google, facebook)
 
     @Column(name = "oauth_id")
-    private String oauthId;
+    private String oauthId; // ID OAuth
 
     @Column(name = "id_card_url")
-    private String idCardUrl;
+    private String idCardUrl; // URL giấy tờ tùy thân
 
     @Column(name = "id_card_front_url")
-    private String idCardFrontUrl;
+    private String idCardFrontUrl; // URL mặt trước CCCD
 
     @Column(name = "id_card_back_url")
-    private String idCardBackUrl;
+    private String idCardBackUrl; // URL mặt sau CCCD
 
     @OneToMany(mappedBy = "landlord")
-    private List<Property> properties;
-
-    @One結果Many(mappedBy = "user")
-    private List<Booking> bookings;
+    private List<Property> properties; // Danh sách nhà trọ do chủ trọ đăng
 
     @OneToMany(mappedBy = "user")
-    private List<Review> reviews;
+    private List<Booking> bookings; // Danh sách đặt phòng
 
     @OneToMany(mappedBy = "user")
-    private List<Notification> notifications;
+    private List<Review> reviews; // Danh sách đánh giá
 
     @OneToMany(mappedBy = "user")
-    private List<Favorite> favorites;
+    private List<Notification> notifications; // Danh sách thông báo
+
+    @OneToMany(mappedBy = "user")
+    private List<Favorite> favorites; // Danh sách yêu thích
 
     @OneToMany(mappedBy = "sender")
-    private List<Message> sentMessages;
+    private List<Message> sentMessages; // Tin nhắn gửi
 
     @OneToMany(mappedBy = "receiver")
-    private List<Message> receivedMessages;
+    private List<Message> receivedMessages; // Tin nhắn nhận
 
     @OneToMany(mappedBy = "reporter")
-    private List<Report> reports;
+    private List<Report> reports; // Báo cáo gửi
 
     @OneToMany(mappedBy = "user")
-    private List<Contract> contracts;
+    private List<Contract> contracts; // Hợp đồng thuê
 
     @OneToMany(mappedBy = "user")
-    private List<Log> logs;
+    private List<Log> logs; // Nhật ký hoạt động
 
     @OneToMany(mappedBy = "user")
-    private List<Feedback> feedbacks;
+    private List<Feedback> feedbacks; // Phản hồi hệ thống
 }

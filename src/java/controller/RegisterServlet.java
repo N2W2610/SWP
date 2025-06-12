@@ -5,32 +5,28 @@
 
 package controller;
 
-import dao.UserDAO;
-import dao.impl.UserDAOImpl;
-import java.io.IOException;
-import java.io.PrintWriter;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.Persistence;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.annotation.MultipartConfig;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.Part;
-import java.io.File;
-import java.nio.file.Paths;
+import model.Role;
 import model.User;
-
+import java.io.IOException;
+import java.io.PrintWriter;
 /**
  *
  * @author Dung Thuy
  */
-@MultipartConfig(
-    fileSizeThreshold = 1024 * 1024,  // 1MB
-    maxFileSize = 5 * 1024 * 1024,    // 5MB
-    maxRequestSize = 10 * 1024 * 1024 // 10MB
-)
 public class RegisterServlet extends HttpServlet {
-    
-    private final UserDAO userDAO = new UserDAOImpl();
+    private EntityManagerFactory emf;
+
+    @Override
+    public void init() throws ServletException {
+        emf = Persistence.createEntityManagerFactory("HouseRentalPU");
+    }
     /** 
      * Processes requests for both HTTP <code>GET</code> and <code>POST</code> methods.
      * @param request servlet request
@@ -77,66 +73,47 @@ public class RegisterServlet extends HttpServlet {
      * @throws IOException if an I/O error occurs
      */
     @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        request.setCharacterEncoding("UTF-8");
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        // Lấy thông tin từ form đăng ký
+        String fullName = request.getParameter("fullName");
+        String email = request.getParameter("email");
+        String password = request.getParameter("password");
+        String phone = request.getParameter("phone");
+        String roleId = request.getParameter("roleId"); // 3: Sinh viên, 4: Chủ trọ
 
-        String fullName = request.getParameter("fullName").trim();
-        String email = request.getParameter("email").trim();
-        String password = request.getParameter("password").trim();
-        String phone = request.getParameter("phone").trim();
-        String role = request.getParameter("role"); // "student" or "landlord"
-
-        int roleId = role.equals("landlord") ? 4 : 3;
-        String idCardPath = null;
-
-        // Kiểm tra email trùng
+        EntityManager em = emf.createEntityManager();
         try {
-            if (userDAO.checkEmailExists(email)) {
-                request.setAttribute("error", "Email đã được đăng ký.");
-                request.getRequestDispatcher("views/register.jsp").forward(request, response);
-                return;
+            em.getTransaction().begin();
+            // Kiểm tra email đã tồn tại
+            if (em.createQuery("SELECT u FROM User u WHERE u.email = :email", User.class)
+                    .setParameter("email", email).getResultList().isEmpty()) {
+                User user = new User();
+                user.setFullName(fullName);
+                user.setEmail(email);
+                user.setPassword(password); // TODO: Mã hóa mật khẩu
+                user.setPhone(phone);
+                Role role = em.find(Role.class, Integer.parseInt(roleId));
+                user.setRole(role);
+                em.persist(user);
+                em.getTransaction().commit();
+                response.sendRedirect("/views/guest_login.jsp");
+            } else {
+                request.setAttribute("error", "Email đã được sử dụng.");
+                request.getRequestDispatcher("/views/guest_register.jsp").forward(request, response);
             }
-
-            // Nếu là chủ trọ → xử lý file CCCD
-            if (role.equals("landlord")) {
-                Part cccdPart = request.getPart("cccd");
-                if (cccdPart != null && cccdPart.getSize() > 0) {
-                    String fileName = Paths.get(cccdPart.getSubmittedFileName()).getFileName().toString();
-                    String uploadsDir = request.getServletContext().getRealPath("/uploads");
-                    File uploadsFolder = new File(uploadsDir);
-                    if (!uploadsFolder.exists()) uploadsFolder.mkdirs();
-
-                    String filePath = uploadsDir + File.separator + fileName;
-                    cccdPart.write(filePath);
-
-                    idCardPath = "uploads/" + fileName; // dùng cho hiển thị lại sau này
-                } else {
-                    request.setAttribute("error", "Vui lòng tải lên CCCD cho chủ trọ.");
-                    request.getRequestDispatcher("views/register.jsp").forward(request, response);
-                    return;
-                }
-            }
-
-            // Đăng ký user
-            User user = new User();
-            user.setFullName(fullName);
-            user.setEmail(email);
-            user.setPassword(password);
-            user.setPhone(phone);
-            user.setRoleId(roleId);
-            user.setStatus(true);
-            user.setOauthProvider(null);      // tài khoản thường
-            user.setOauthId(null);            // không dùng oauth_id
-            user.setIdCardUrl(idCardPath);    // nếu là chủ trọ thì có
-
-            userDAO.insertUser(user);
-
-            response.sendRedirect("views/login.jsp");
-
         } catch (Exception e) {
-            e.printStackTrace();
-            request.setAttribute("error", "Đã xảy ra lỗi khi đăng ký.");
-            request.getRequestDispatcher("views/register.jsp").forward(request, response);
+            request.setAttribute("error", "Đăng ký thất bại: " + e.getMessage());
+            request.getRequestDispatcher("/views/guest_register.jsp").forward(request, response);
+        } finally {
+            em.close();
+        }
+    }
+
+    @Override
+    public void destroy() {
+        if (emf != null) {
+            emf.close();
         }
     }
 

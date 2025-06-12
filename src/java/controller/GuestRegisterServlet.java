@@ -12,20 +12,16 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
-import model.User;
-
 import java.io.IOException;
 import java.io.PrintWriter;
-
-
+import model.Role;
+import model.User;
 /**
  *
  * @author Dung Thuy
  */
-public class LoginServlet extends HttpServlet {
+public class GuestRegisterServlet extends HttpServlet {
     private EntityManagerFactory emf;
-
     @Override
     public void init() throws ServletException {
         emf = Persistence.createEntityManagerFactory("HouseRentalPU");
@@ -45,10 +41,10 @@ public class LoginServlet extends HttpServlet {
             out.println("<!DOCTYPE html>");
             out.println("<html>");
             out.println("<head>");
-            out.println("<title>Servlet LoginServlet</title>");  
+            out.println("<title>Servlet GuestRegisterServlet</title>");  
             out.println("</head>");
             out.println("<body>");
-            out.println("<h1>Servlet LoginServlet at " + request.getContextPath () + "</h1>");
+            out.println("<h1>Servlet GuestRegisterServlet at " + request.getContextPath () + "</h1>");
             out.println("</body>");
             out.println("</html>");
         }
@@ -78,46 +74,37 @@ public class LoginServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        // Lấy thông tin đăng nhập
+        // Lấy thông tin từ form đăng ký
+        String fullName = request.getParameter("fullName");
         String email = request.getParameter("email");
         String password = request.getParameter("password");
+        String phone = request.getParameter("phone");
 
         EntityManager em = emf.createEntityManager();
         try {
-            // Kiểm tra thông tin đăng nhập cho mọi vai trò
-            User user = em.createQuery("SELECT u FROM User u WHERE u.email = :email AND u.password = :password", User.class)
-                    .setParameter("email", email)
-                    .setParameter("password", password) // TODO: So sánh mật khẩu mã hóa
-                    .getSingleResult();
-            if (user != null) {
-                HttpSession session = request.getSession();
-                session.setAttribute("user", user);
-                // Chuyển hướng theo vai trò
-                int roleId = user.getRole().getId();
-                if (roleId == 1) { // Quản trị viên
-                    response.sendRedirect("/admin-requests");
-                } else if (roleId == 2) { // Nhân viên
-                    response.sendRedirect("/admin-requests");
-                } else if (roleId == 3 || roleId == 4) { // Sinh viên hoặc Chủ trọ
-                    response.sendRedirect("/house-list");
-                } else {
-                    response.sendRedirect("/house-list");
-                }
+            em.getTransaction().begin();
+            // Kiểm tra email đã tồn tại
+            if (em.createQuery("SELECT u FROM User u WHERE u.email = :email", User.class)
+                    .setParameter("email", email).getResultList().isEmpty()) {
+                User user = new User();
+                user.setFullName(fullName);
+                user.setEmail(email);
+                user.setPassword(password); // TODO: Mã hóa mật khẩu bằng BCrypt
+                user.setPhone(phone);
+                Role role = em.find(Role.class, 3); // Role ID 3: Sinh viên
+                user.setRole(role);
+                em.persist(user);
+                em.getTransaction().commit();
+                response.sendRedirect("/views/guest_login.jsp");
             } else {
-                request.setAttribute("error", "Email hoặc mật khẩu không đúng.");
-                request.getRequestDispatcher("/views/guest_login.jsp").forward(request, response);
+                request.setAttribute("error", "Email đã được sử dụng.");
+                request.getRequestDispatcher("/views/guest_register.jsp").forward(request, response);
             }
         } catch (Exception e) {
-            request.setAttribute("error", "Đăng nhập thất bại: " + e.getMessage());
-            request.getRequestDispatcher("/views/guest_login.jsp").forward(request, response);
+            request.setAttribute("error", "Đăng ký thất bại: " + e.getMessage());
+            request.getRequestDispatcher("/views/guest_register.jsp").forward(request, response);
         } finally {
             em.close();
-        }
-    }
-    @Override
-    public void destroy() {
-        if (emf != null) {
-            emf.close();
         }
     }
 
@@ -125,6 +112,12 @@ public class LoginServlet extends HttpServlet {
      * Returns a short description of the servlet.
      * @return a String containing servlet description
      */
+    @Override
+    public void destroy() {
+        if (emf != null) {
+            emf.close();
+        }
+    }
     @Override
     public String getServletInfo() {
         return "Short description";

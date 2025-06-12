@@ -5,32 +5,32 @@
 
 package controller;
 
-import db.DBContext;
-import java.io.IOException;
-import java.io.PrintWriter;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.Persistence;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.annotation.MultipartConfig;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
-import jakarta.servlet.http.Part;
-import java.io.File;
-import java.nio.file.Paths;
-import java.sql.PreparedStatement;
+import model.Role;
+import model.UserRequest;
 
+import java.io.IOException;
+import java.io.PrintWriter;
+import model.User;
 
 /**
  *
  * @author Dung Thuy
  */
-@MultipartConfig(
-    fileSizeThreshold = 1024 * 1024,
-    maxFileSize = 5 * 1024 * 1024,
-    maxRequestSize = 15 * 1024 * 1024
-)
 public class RegisterStaffServlet extends HttpServlet {
-   
+    private EntityManagerFactory emf;
+
+    @Override
+    public void init() throws ServletException {
+        emf = Persistence.createEntityManagerFactory("HouseRentalPU");
+    }
+
     /** 
      * Processes requests for both HTTP <code>GET</code> and <code>POST</code> methods.
      * @param request servlet request
@@ -78,62 +78,55 @@ public class RegisterStaffServlet extends HttpServlet {
      */
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
-        throws ServletException, IOException {
+            throws ServletException, IOException {
+        // Lấy thông tin từ form đăng ký nhân viên
+        String fullName = request.getParameter("fullName");
+        String email = request.getParameter("email");
+        String password = request.getParameter("password");
+        String phone = request.getParameter("phone");
+        String portraitUrl = request.getParameter("portraitUrl");
+        String idCardFrontUrl = request.getParameter("idCardFrontUrl");
+        String idCardBackUrl = request.getParameter("idCardBackUrl");
 
-        request.setCharacterEncoding("UTF-8");
-        HttpSession session = request.getSession();
-
-        String fullName = request.getParameter("fullName").trim();
-        String email = request.getParameter("email").trim();
-        String password = request.getParameter("password").trim();
-        String phone = request.getParameter("phone").trim();
-
-        // Upload thư mục
-        String uploadPath = request.getServletContext().getRealPath("/uploads");
-        File uploadDir = new File(uploadPath);
-        if (!uploadDir.exists()) uploadDir.mkdirs();
-
-        // Upload files
-        Part portrait = request.getPart("portrait");
-        Part cccdFront = request.getPart("cccdFront");
-        Part cccdBack = request.getPart("cccdBack");
-
-        String portraitName = Paths.get(portrait.getSubmittedFileName()).getFileName().toString();
-        String cccdFrontName = Paths.get(cccdFront.getSubmittedFileName()).getFileName().toString();
-        String cccdBackName = Paths.get(cccdBack.getSubmittedFileName()).getFileName().toString();
-
-        String portraitUrl = "uploads/" + System.currentTimeMillis() + "_portrait_" + portraitName;
-        String frontUrl = "uploads/" + System.currentTimeMillis() + "_front_" + cccdFrontName;
-        String backUrl = "uploads/" + System.currentTimeMillis() + "_back_" + cccdBackName;
-
-        portrait.write(uploadPath + File.separator + portraitUrl.replace("uploads/", ""));
-        cccdFront.write(uploadPath + File.separator + frontUrl.replace("uploads/", ""));
-        cccdBack.write(uploadPath + File.separator + backUrl.replace("uploads/", ""));
-
-        // Ghi vào DB
-        try (PreparedStatement ps = new DBContext().getConnection().prepareStatement(
-                "INSERT INTO UserRequests (full_name, email, password, phone, role_id, status, portrait_url, id_card_front_url, id_card_back_url) " +
-                "VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)"
-        )) {
-            ps.setString(1, fullName);
-            ps.setString(2, email);
-            ps.setString(3, password);
-            ps.setString(4, phone);
-            ps.setInt(5, 2); // role_id = 2 (staff)
-            ps.setString(6, portraitUrl);
-            ps.setString(7, frontUrl);
-            ps.setString(8, backUrl);
-            ps.executeUpdate();
-
-            session.setAttribute("message", "Gửi yêu cầu đăng ký thành công! Vui lòng chờ admin duyệt.");
-            response.sendRedirect("views/login.jsp");
-
+        EntityManager em = emf.createEntityManager();
+        try {
+            em.getTransaction().begin();
+            // Kiểm tra email đã tồn tại
+            if (em.createQuery("SELECT u FROM User u WHERE u.email = :email", User.class)
+                    .setParameter("email", email).getResultList().isEmpty()) {
+                UserRequest userRequest = new UserRequest();
+                userRequest.setFullName(fullName);
+                userRequest.setEmail(email);
+                userRequest.setPassword(password); // TODO: Mã hóa mật khẩu
+                userRequest.setPhone(phone);
+                userRequest.setPortraitUrl(portraitUrl);
+                userRequest.setIdCardFrontUrl(idCardFrontUrl);
+                userRequest.setIdCardBackUrl(idCardBackUrl);
+                Role role = em.find(Role.class, 2); // Role ID 2: Nhân viên
+                userRequest.setRole(role);
+                userRequest.setStatus("pending");
+                em.persist(userRequest);
+                em.getTransaction().commit();
+                response.sendRedirect("/views/guest_login.jsp?message=Yêu cầu đăng ký nhân viên đã được gửi.");
+            } else {
+                request.setAttribute("error", "Email đã được sử dụng.");
+                request.getRequestDispatcher("/views/guest_register.jsp").forward(request, response);
+            }
         } catch (Exception e) {
-            e.printStackTrace();
-            request.setAttribute("error", "Đăng ký thất bại. Vui lòng thử lại.");
-            request.getRequestDispatcher("views/registerStaff.jsp").forward(request, response);
+            request.setAttribute("error", "Đăng ký nhân viên thất bại: " + e.getMessage());
+            request.getRequestDispatcher("/views/guest_register.jsp").forward(request, response);
+        } finally {
+            em.close();
         }
     }
+
+    @Override
+    public void destroy() {
+        if (emf != null) {
+            emf.close();
+        }
+    }
+
     /** 
      * Returns a short description of the servlet.
      * @return a String containing servlet description
