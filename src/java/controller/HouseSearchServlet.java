@@ -12,18 +12,18 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
-import model.User;
+import model.Area;
+import model.Property;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-
+import java.util.List;
 
 /**
  *
  * @author Dung Thuy
  */
-public class LoginServlet extends HttpServlet {
+public class HouseSearchServlet extends HttpServlet {
     private EntityManagerFactory emf;
 
     @Override
@@ -45,10 +45,10 @@ public class LoginServlet extends HttpServlet {
             out.println("<!DOCTYPE html>");
             out.println("<html>");
             out.println("<head>");
-            out.println("<title>Servlet LoginServlet</title>");  
+            out.println("<title>Servlet HouseSearchServlet</title>");  
             out.println("</head>");
             out.println("<body>");
-            out.println("<h1>Servlet LoginServlet at " + request.getContextPath () + "</h1>");
+            out.println("<h1>Servlet HouseSearchServlet at " + request.getContextPath () + "</h1>");
             out.println("</body>");
             out.println("</html>");
         }
@@ -64,9 +64,58 @@ public class LoginServlet extends HttpServlet {
      */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
-    throws ServletException, IOException {
-        processRequest(request, response);
-    } 
+            throws ServletException, IOException {
+        EntityManager em = emf.createEntityManager();
+        try {
+            // Lấy danh sách khu vực cho dropdown
+            List<Area> areas = em.createQuery("SELECT a FROM Area a", Area.class).getResultList();
+            request.setAttribute("areas", areas);
+
+            // Lấy tham số tìm kiếm
+            String areaId = request.getParameter("areaId");
+            String minPrice = request.getParameter("minPrice");
+            String maxPrice = request.getParameter("maxPrice");
+
+            // Xây dựng truy vấn động
+            String query = "SELECT p FROM Property p WHERE 1=1";
+            if (areaId != null && !areaId.isEmpty()) {
+                query += " AND p.area.id = :areaId";
+            }
+            if (minPrice != null && !minPrice.isEmpty()) {
+                query += " AND p.price >= :minPrice";
+            }
+            if (maxPrice != null && !maxPrice.isEmpty()) {
+                query += " AND p.price <= :maxPrice";
+            }
+
+            var jpqlQuery = em.createQuery(query, Property.class);
+            if (areaId != null && !areaId.isEmpty()) {
+                jpqlQuery.setParameter("areaId", Integer.parseInt(areaId));
+            }
+            if (minPrice != null && !minPrice.isEmpty()) {
+                jpqlQuery.setParameter("minPrice", Double.parseDouble(minPrice));
+            }
+            if (maxPrice != null && !maxPrice.isEmpty()) {
+                jpqlQuery.setParameter("maxPrice", Double.parseDouble(maxPrice));
+            }
+
+            List<Property> properties = jpqlQuery.getResultList();
+            request.setAttribute("properties", properties);
+            request.getRequestDispatcher("/views/house_search.jsp").forward(request, response);
+        } catch (Exception e) {
+            request.setAttribute("error", "Lỗi khi tìm kiếm nhà trọ: " + e.getMessage());
+            request.getRequestDispatcher("/views/house_search.jsp").forward(request, response);
+        } finally {
+            em.close();
+        }
+    }
+
+    @Override
+    public void destroy() {
+        if (emf != null) {
+            emf.close();
+        }
+    }
 
     /** 
      * Handles the HTTP <code>POST</code> method.
@@ -77,48 +126,8 @@ public class LoginServlet extends HttpServlet {
      */
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        // Lấy thông tin đăng nhập
-        String email = request.getParameter("email");
-        String password = request.getParameter("password");
-
-        EntityManager em = emf.createEntityManager();
-        try {
-            // Kiểm tra thông tin đăng nhập cho mọi vai trò
-            User user = em.createQuery("SELECT u FROM User u WHERE u.email = :email AND u.password = :password", User.class)
-                    .setParameter("email", email)
-                    .setParameter("password", password) // TODO: So sánh mật khẩu mã hóa
-                    .getSingleResult();
-            if (user != null) {
-                HttpSession session = request.getSession();
-                session.setAttribute("user", user);
-                // Chuyển hướng theo vai trò
-                int roleId = user.getRole().getId();
-                if (roleId == 1) { // Quản trị viên
-                    response.sendRedirect("/admin-requests");
-                } else if (roleId == 2) { // Nhân viên
-                    response.sendRedirect("/admin-requests");
-                } else if (roleId == 3 || roleId == 4) { // Sinh viên hoặc Chủ trọ
-                    response.sendRedirect("/house-list");
-                } else {
-                    response.sendRedirect("/house-list");
-                }
-            } else {
-                request.setAttribute("error", "Email hoặc mật khẩu không đúng.");
-                request.getRequestDispatcher("/views/guest_login.jsp").forward(request, response);
-            }
-        } catch (Exception e) {
-            request.setAttribute("error", "Đăng nhập thất bại: " + e.getMessage());
-            request.getRequestDispatcher("/views/guest_login.jsp").forward(request, response);
-        } finally {
-            em.close();
-        }
-    }
-    @Override
-    public void destroy() {
-        if (emf != null) {
-            emf.close();
-        }
+    throws ServletException, IOException {
+        processRequest(request, response);
     }
 
     /** 

@@ -17,19 +17,13 @@ import model.User;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-
-
 /**
  *
  * @author Dung Thuy
  */
-public class LoginServlet extends HttpServlet {
+public class GuestLoginServlet extends HttpServlet {
     private EntityManagerFactory emf;
 
-    @Override
-    public void init() throws ServletException {
-        emf = Persistence.createEntityManagerFactory("HouseRentalPU");
-    }
     /** 
      * Processes requests for both HTTP <code>GET</code> and <code>POST</code> methods.
      * @param request servlet request
@@ -45,15 +39,18 @@ public class LoginServlet extends HttpServlet {
             out.println("<!DOCTYPE html>");
             out.println("<html>");
             out.println("<head>");
-            out.println("<title>Servlet LoginServlet</title>");  
+            out.println("<title>Servlet GuestLoginServlet</title>");  
             out.println("</head>");
             out.println("<body>");
-            out.println("<h1>Servlet LoginServlet at " + request.getContextPath () + "</h1>");
+            out.println("<h1>Servlet GuestLoginServlet at " + request.getContextPath () + "</h1>");
             out.println("</body>");
             out.println("</html>");
         }
     } 
-
+    @Override
+    public void init() throws ServletException {
+        emf = Persistence.createEntityManagerFactory("HouseRentalPU");
+    }
     // <editor-fold defaultstate="collapsed" desc="HttpServlet methods. Click on the + sign on the left to edit the code.">
     /** 
      * Handles the HTTP <code>GET</code> method.
@@ -84,7 +81,7 @@ public class LoginServlet extends HttpServlet {
 
         EntityManager em = emf.createEntityManager();
         try {
-            // Kiểm tra thông tin đăng nhập cho mọi vai trò
+            // Kiểm tra thông tin đăng nhập
             User user = em.createQuery("SELECT u FROM User u WHERE u.email = :email AND u.password = :password", User.class)
                     .setParameter("email", email)
                     .setParameter("password", password) // TODO: So sánh mật khẩu mã hóa
@@ -92,17 +89,7 @@ public class LoginServlet extends HttpServlet {
             if (user != null) {
                 HttpSession session = request.getSession();
                 session.setAttribute("user", user);
-                // Chuyển hướng theo vai trò
-                int roleId = user.getRole().getId();
-                if (roleId == 1) { // Quản trị viên
-                    response.sendRedirect("/admin-requests");
-                } else if (roleId == 2) { // Nhân viên
-                    response.sendRedirect("/admin-requests");
-                } else if (roleId == 3 || roleId == 4) { // Sinh viên hoặc Chủ trọ
-                    response.sendRedirect("/house-list");
-                } else {
-                    response.sendRedirect("/house-list");
-                }
+                response.sendRedirect("/house-list");
             } else {
                 request.setAttribute("error", "Email hoặc mật khẩu không đúng.");
                 request.getRequestDispatcher("/views/guest_login.jsp").forward(request, response);
@@ -114,12 +101,6 @@ public class LoginServlet extends HttpServlet {
             em.close();
         }
     }
-    @Override
-    public void destroy() {
-        if (emf != null) {
-            emf.close();
-        }
-    }
 
     /** 
      * Returns a short description of the servlet.
@@ -129,5 +110,10 @@ public class LoginServlet extends HttpServlet {
     public String getServletInfo() {
         return "Short description";
     }// </editor-fold>
-
+    @Override
+    public void destroy() {
+        if (emf != null) {
+            emf.close();
+        }
+    }
 }

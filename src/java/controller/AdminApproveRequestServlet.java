@@ -3,25 +3,35 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/JSP_Servlet/Servlet.java to edit this template
  */
 
+package controller;
 
-import db.DBContext;
-import java.io.PrintWriter;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.Persistence;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpSession;
+import model.User;
+import model.UserRequest;
+
 import java.io.IOException;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.util.ArrayList;
+import java.io.PrintWriter;
 import java.util.List;
-import java.sql.Connection;
+
 /**
  *
  * @author Dung Thuy
  */
 public class AdminApproveRequestServlet extends HttpServlet {
-   
+    private EntityManagerFactory emf;
+
+    @Override
+    public void init() throws ServletException {
+        emf = Persistence.createEntityManagerFactory("HouseRentalPU");
+    }
+
     /** 
      * Processes requests for both HTTP <code>GET</code> and <code>POST</code> methods.
      * @param request servlet request
@@ -54,28 +64,28 @@ public class AdminApproveRequestServlet extends HttpServlet {
      * @throws ServletException if a servlet-specific error occurs
      * @throws IOException if an I/O error occurs
      */
-     @Override
+    @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        List<String[]> requests = new ArrayList<>();
-        try (PreparedStatement ps = new DBContext().getConnection().prepareStatement(
-                "SELECT * FROM UserRequests WHERE status = 'pending'"
-        ); ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                String[] row = new String[6];
-                row[0] = rs.getString("id");
-                row[1] = rs.getString("full_name");
-                row[2] = rs.getString("email");
-                row[3] = rs.getString("phone");
-                row[4] = rs.getString("portrait_url");
-                row[5] = rs.getString("id_card_front_url");
-                requests.add(row);
-            }
+        HttpSession session = request.getSession();
+        User admin = (User) session.getAttribute("user");
+        if (admin == null || admin.getRole().getId() != 1) { // Chỉ quản trị viên
+            response.sendRedirect("/views/guest_login.jsp");
+            return;
+        }
+
+        EntityManager em = emf.createEntityManager();
+        try {
+            // Lấy danh sách yêu cầu nhân viên
+            List<UserRequest> requests = em.createQuery("SELECT r FROM UserRequest r WHERE r.status = 'pending'", UserRequest.class)
+                    .getResultList();
             request.setAttribute("requests", requests);
-            request.getRequestDispatcher("views/adminRequestList.jsp").forward(request, response);
+            request.getRequestDispatcher("/views/admin_requests.jsp").forward(request, response);
         } catch (Exception e) {
-            e.printStackTrace();
-            response.sendError(500);
+            request.setAttribute("error", "Lỗi khi tải danh sách yêu cầu: " + e.getMessage());
+            request.getRequestDispatcher("/views/admin_requests.jsp").forward(request, response);
+        } finally {
+            em.close();
         }
     }
 
@@ -89,46 +99,44 @@ public class AdminApproveRequestServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        String action = request.getParameter("action");
-        int requestId = Integer.parseInt(request.getParameter("id"));
+        HttpSession session = request.getSession();
+        User admin = (User) session.getAttribute("user");
+        if (admin == null || admin.getRole().getId() != 1) {
+            response.sendRedirect("/views/guest_login.jsp");
+            return;
+        }
 
-        try (Connection conn = new DBContext().getConnection()) {
-            if ("approve".equals(action)) {
-                // Copy sang bảng Users
-                PreparedStatement sel = conn.prepareStatement("SELECT * FROM UserRequests WHERE id = ?");
-                sel.setInt(1, requestId);
-                ResultSet rs = sel.executeQuery();
-                if (rs.next()) {
-                    PreparedStatement ins = conn.prepareStatement(
-                        "INSERT INTO Users (full_name, email, password, phone, role_id, status, oauth_provider, oauth_id, id_card_front_url, id_card_back_url, portrait_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                    );
-                    ins.setString(1, rs.getString("full_name"));
-                    ins.setString(2, rs.getString("email"));
-                    ins.setString(3, rs.getString("password"));
-                    ins.setString(4, rs.getString("phone"));
-                    ins.setInt(5, rs.getInt("role_id"));
-                    ins.setBoolean(6, true);
-                    ins.setString(7, null);
-                    ins.setString(8, null);
-                    ins.setString(9, rs.getString("id_card_front_url"));
-                    ins.setString(10, rs.getString("id_card_back_url"));
-                    ins.setString(11, rs.getString("portrait_url"));
-                    ins.executeUpdate();
+        String requestId = request.getParameter("requestId");
+        String action = request.getParameter("action"); // approve/reject
+
+        EntityManager em = emf.createEntityManager();
+        try {
+            em.getTransaction().begin();
+            UserRequest userRequest = em.find(UserRequest.class, Integer.parseInt(requestId));
+            if (userRequest != null) {
+                if ("approve".equals(action)) {
+                    // Tạo tài khoản nhân viên
+                    User user = new User();
+                    user.setFullName(userRequest.getFullName());
+                    user.setEmail(userRequest.getEmail());
+                    user.setPassword(userRequest.getPassword()); // Đã mã hóa từ UserRequest
+                    user.setPhone(userRequest.getPhone());
+                    user.setRole(userRequest.getRole());
+                    user.setStatus(true);
+                    em.persist(user);
+                    userRequest.setStatus("approved");
+                } else {
+                    userRequest.setStatus("rejected");
                 }
-
-                PreparedStatement upd = conn.prepareStatement("UPDATE UserRequests SET status = 'approved' WHERE id = ?");
-                upd.setInt(1, requestId);
-                upd.executeUpdate();
-
-            } else if ("reject".equals(action)) {
-                PreparedStatement upd = conn.prepareStatement("UPDATE UserRequests SET status = 'rejected' WHERE id = ?");
-                upd.setInt(1, requestId);
-                upd.executeUpdate();
+                em.merge(userRequest);
+                em.getTransaction().commit();
             }
-            response.sendRedirect("admin-requests");
+            response.sendRedirect("/admin-requests");
         } catch (Exception e) {
-            e.printStackTrace();
-            response.sendError(500);
+            request.setAttribute("error", "Xử lý yêu cầu thất bại: " + e.getMessage());
+            request.getRequestDispatcher("/admin-requests").forward(request, response);
+        } finally {
+            em.close();
         }
     }
 
@@ -140,5 +148,10 @@ public class AdminApproveRequestServlet extends HttpServlet {
     public String getServletInfo() {
         return "Short description";
     }// </editor-fold>
-
+    @Override
+    public void destroy() {
+        if (emf != null) {
+            emf.close();
+        }
+    }
 }

@@ -5,32 +5,31 @@
 
 package controller;
 
-import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeTokenRequest;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
-import com.google.api.client.googleapis.auth.oauth2.GoogleTokenResponse;
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
-import com.google.api.client.json.gson.GsonFactory;
-import java.io.IOException;
-import java.io.PrintWriter;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.Persistence;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
-import java.security.GeneralSecurityException;
-import java.util.Collections;
+import model.Role;
+import model.User;
+
+import java.io.IOException;
+import java.io.PrintWriter;
 
 /**
  *
  * @author Dung Thuy
  */
-@WebServlet("/login-google")
 public class LoginGoogleServlet extends HttpServlet {
-   private static final String CLIENT_ID = "46630592083-hmsefgbmqqc9ehll7vmk33b86kdi79s4.apps.googleusercontent.com";
-    private static final String CLIENT_SECRET = "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";
-    private static final String REDIRECT_URI = "http://localhost:8080/HouseFinder1/views/login-google";
+    private EntityManagerFactory emf;
+
+    @Override
+    public void init() throws ServletException {
+        emf = Persistence.createEntityManagerFactory("HouseRentalPU");
+    }
     /** 
      * Processes requests for both HTTP <code>GET</code> and <code>POST</code> methods.
      * @param request servlet request
@@ -66,66 +65,63 @@ public class LoginGoogleServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
+        // Lấy thông tin từ Google OAuth (giả định nhận từ query params)
+        String googleId = request.getParameter("googleId");
+        String email = request.getParameter("email");
+        String fullName = request.getParameter("fullName");
 
-        String code = request.getParameter("code");
-
-        if (code == null || code.isEmpty()) {
-            response.sendRedirect("https://accounts.google.com/o/oauth2/auth"
-                    + "?client_id=" + CLIENT_ID
-                    + "&redirect_uri=" + REDIRECT_URI
-                    + "&response_type=code"
-                    + "&scope=email%20profile"
-                    + "&access_type=offline");
+        // TODO: Xác thực Google OAuth token với Google API
+        // Hiện tại giả định thông tin hợp lệ từ client-side
+        if (googleId == null || email == null) {
+            request.setAttribute("error", "Thông tin Google không hợp lệ.");
+            request.getRequestDispatcher("/views/guest_login.jsp").forward(request, response);
             return;
         }
 
+        EntityManager em = emf.createEntityManager();
         try {
-            GoogleTokenResponse tokenResponse = new GoogleAuthorizationCodeTokenRequest(
-                    GoogleNetHttpTransport.newTrustedTransport(),
-                    GsonFactory.getDefaultInstance(),
-                    "https://oauth2.googleapis.com/token",
-                    CLIENT_ID,
-                    CLIENT_SECRET,
-                    code,
-                    REDIRECT_URI
-            ).execute();
+            em.getTransaction().begin();
+            // Kiểm tra người dùng đã tồn tại
+            User user = em.createQuery("SELECT u FROM User u WHERE u.oauthId = :oauthId AND u.oauthProvider = 'google'", User.class)
+                    .setParameter("oauthId", googleId)
+                    .getResultList()
+                    .stream()
+                    .findFirst()
+                    .orElse(null);
 
-            String idToken = tokenResponse.getIdToken();
-
-            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
-                    GoogleNetHttpTransport.newTrustedTransport(),
-                    GsonFactory.getDefaultInstance())
-                    .setAudience(Collections.singletonList(CLIENT_ID))
-                    .build();
-
-            GoogleIdToken token = verifier.verify(idToken);
-
-            if (token != null) {
-                GoogleIdToken.Payload payload = token.getPayload();
-                String email = payload.getEmail();
-                String name = (String) payload.get("name");
-                String pictureUrl = (String) payload.get("picture");
-
-                HttpSession session = request.getSession();
-                session.setAttribute("email", email);
-                session.setAttribute("name", name);
-                session.setAttribute("picture", pictureUrl);
-
-                // TODO: kiểm tra DB, tạo user nếu chưa tồn tại
-                // Ví dụ:
-                // User u = userDAO.getByEmail(email);
-                // if (u == null) userDAO.insertFromGoogle(name, email);
-
-                response.sendRedirect("home.jsp");
-            } else {
-                response.sendRedirect("login.jsp?error=Token không hợp lệ");
+            if (user == null) {
+                // Tạo người dùng mới
+                user = new User();
+                user.setEmail(email);
+                user.setFullName(fullName);
+                user.setOauthProvider("google");
+                user.setOauthId(googleId);
+                Role role = em.find(Role.class, 3); // Role ID 3: Sinh viên
+                user.setRole(role);
+                user.setStatus(true);
+                em.persist(user);
             }
 
-        } catch (GeneralSecurityException e) {
-            throw new ServletException(e);
+            em.getTransaction().commit();
+
+            // Lưu thông tin người dùng vào session
+            HttpSession session = request.getSession();
+            session.setAttribute("user", user);
+            response.sendRedirect("/house-list");
+        } catch (Exception e) {
+            request.setAttribute("error", "Đăng nhập Google thất bại: " + e.getMessage());
+            request.getRequestDispatcher("/views/guest_login.jsp").forward(request, response);
+        } finally {
+            em.close();
         }
     }
 
+    @Override
+    public void destroy() {
+        if (emf != null) {
+            emf.close();
+        }
+    }
 
     /** 
      * Handles the HTTP <code>POST</code> method.

@@ -12,18 +12,16 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import model.User;
 
 import java.io.IOException;
 import java.io.PrintWriter;
 
-
 /**
  *
  * @author Dung Thuy
  */
-public class LoginServlet extends HttpServlet {
+public class LandlordInfoServlet extends HttpServlet {
     private EntityManagerFactory emf;
 
     @Override
@@ -45,10 +43,10 @@ public class LoginServlet extends HttpServlet {
             out.println("<!DOCTYPE html>");
             out.println("<html>");
             out.println("<head>");
-            out.println("<title>Servlet LoginServlet</title>");  
+            out.println("<title>Servlet LandlordInfoServlet</title>");  
             out.println("</head>");
             out.println("<body>");
-            out.println("<h1>Servlet LoginServlet at " + request.getContextPath () + "</h1>");
+            out.println("<h1>Servlet LandlordInfoServlet at " + request.getContextPath () + "</h1>");
             out.println("</body>");
             out.println("</html>");
         }
@@ -64,9 +62,33 @@ public class LoginServlet extends HttpServlet {
      */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
-    throws ServletException, IOException {
-        processRequest(request, response);
-    } 
+            throws ServletException, IOException {
+        String id = request.getParameter("id");
+        EntityManager em = emf.createEntityManager();
+        try {
+            // Lấy thông tin chủ trọ theo ID
+            User landlord = em.find(User.class, Integer.parseInt(id));
+            if (landlord != null) {
+                request.setAttribute("landlord", landlord);
+                request.getRequestDispatcher("/views/view_landlord_info.jsp").forward(request, response);
+            } else {
+                request.setAttribute("error", "Không tìm thấy chủ trọ.");
+                request.getRequestDispatcher("/views/view_landlord_info.jsp").forward(request, response);
+            }
+        } catch (Exception e) {
+            request.setAttribute("error", "Lỗi khi tải thông tin chủ trọ: " + e.getMessage());
+            request.getRequestDispatcher("/views/view_landlord_info.jsp").forward(request, response);
+        } finally {
+            em.close();
+        }
+    }
+
+    @Override
+    public void destroy() {
+        if (emf != null) {
+            emf.close();
+        }
+    }
 
     /** 
      * Handles the HTTP <code>POST</code> method.
@@ -77,48 +99,8 @@ public class LoginServlet extends HttpServlet {
      */
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        // Lấy thông tin đăng nhập
-        String email = request.getParameter("email");
-        String password = request.getParameter("password");
-
-        EntityManager em = emf.createEntityManager();
-        try {
-            // Kiểm tra thông tin đăng nhập cho mọi vai trò
-            User user = em.createQuery("SELECT u FROM User u WHERE u.email = :email AND u.password = :password", User.class)
-                    .setParameter("email", email)
-                    .setParameter("password", password) // TODO: So sánh mật khẩu mã hóa
-                    .getSingleResult();
-            if (user != null) {
-                HttpSession session = request.getSession();
-                session.setAttribute("user", user);
-                // Chuyển hướng theo vai trò
-                int roleId = user.getRole().getId();
-                if (roleId == 1) { // Quản trị viên
-                    response.sendRedirect("/admin-requests");
-                } else if (roleId == 2) { // Nhân viên
-                    response.sendRedirect("/admin-requests");
-                } else if (roleId == 3 || roleId == 4) { // Sinh viên hoặc Chủ trọ
-                    response.sendRedirect("/house-list");
-                } else {
-                    response.sendRedirect("/house-list");
-                }
-            } else {
-                request.setAttribute("error", "Email hoặc mật khẩu không đúng.");
-                request.getRequestDispatcher("/views/guest_login.jsp").forward(request, response);
-            }
-        } catch (Exception e) {
-            request.setAttribute("error", "Đăng nhập thất bại: " + e.getMessage());
-            request.getRequestDispatcher("/views/guest_login.jsp").forward(request, response);
-        } finally {
-            em.close();
-        }
-    }
-    @Override
-    public void destroy() {
-        if (emf != null) {
-            emf.close();
-        }
+    throws ServletException, IOException {
+        processRequest(request, response);
     }
 
     /** 
