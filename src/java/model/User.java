@@ -1,110 +1,82 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package model;
 
-/**
- *
- * @author Dung Thuy
- */
+import lombok.Data;
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Data
+@Entity
+@Table(name = "Users")
 public class User {
-    private int id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer id;
+
+    @Column(name = "full_name")
     private String fullName;
+
+    @Column(unique = true)
     private String email;
+
     private String password;
+
     private String phone;
-    private int roleId;
-    private boolean status;
+
+    @ManyToOne
+    @JoinColumn(name = "role_id")
+    private Role role;
+
+    private Boolean status = true;
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+    @Column(name = "oauth_provider")
     private String oauthProvider;
+
+    @Column(name = "oauth_id")
     private String oauthId;
+
+    @Column(name = "id_card_url")
     private String idCardUrl;
 
-    public User() {
-    }
+    @Column(name = "id_card_front_url")
+    private String idCardFrontUrl;
 
-    public User(int id, String fullName, String email, String password, String phone,
-                int roleId, boolean status, String oauthProvider, String oauthId, String idCardUrl) {
-        this.id = id;
-        this.fullName = fullName;
-        this.email = email;
-        this.password = password;
-        this.phone = phone;
-        this.roleId = roleId;
-        this.status = status;
-        this.oauthProvider = oauthProvider;
-        this.oauthId = oauthId;
-        this.idCardUrl = idCardUrl;
-    }
+    @Column(name = "id_card_back_url")
+    private String idCardBackUrl;
 
-    // Getters & Setters
-    public int getId() {
-        return id;
-    }
-    public void setId(int id) {
-        this.id = id;
-    }
+    @OneToMany(mappedBy = "landlord")
+    private List<Property> properties;
 
-    public String getFullName() {
-        return fullName;
-    }
-    public void setFullName(String fullName) {
-        this.fullName = fullName;
-    }
+    @One結果Many(mappedBy = "user")
+    private List<Booking> bookings;
 
-    public String getEmail() {
-        return email;
-    }
-    public void setEmail(String email) {
-        this.email = email;
-    }
+    @OneToMany(mappedBy = "user")
+    private List<Review> reviews;
 
-    public String getPassword() {
-        return password;
-    }
-    public void setPassword(String password) {
-        this.password = password;
-    }
+    @OneToMany(mappedBy = "user")
+    private List<Notification> notifications;
 
-    public String getPhone() {
-        return phone;
-    }
-    public void setPhone(String phone) {
-        this.phone = phone;
-    }
+    @OneToMany(mappedBy = "user")
+    private List<Favorite> favorites;
 
-    public int getRoleId() {
-        return roleId;
-    }
-    public void setRoleId(int roleId) {
-        this.roleId = roleId;
-    }
+    @OneToMany(mappedBy = "sender")
+    private List<Message> sentMessages;
 
-    public boolean isStatus() {
-        return status;
-    }
-    public void setStatus(boolean status) {
-        this.status = status;
-    }
+    @OneToMany(mappedBy = "receiver")
+    private List<Message> receivedMessages;
 
-    public String getOauthProvider() {
-        return oauthProvider;
-    }
-    public void setOauthProvider(String oauthProvider) {
-        this.oauthProvider = oauthProvider;
-    }
+    @OneToMany(mappedBy = "reporter")
+    private List<Report> reports;
 
-    public String getOauthId() {
-        return oauthId;
-    }
-    public void setOauthId(String oauthId) {
-        this.oauthId = oauthId;
-    }
+    @OneToMany(mappedBy = "user")
+    private List<Contract> contracts;
 
-    public String getIdCardUrl() {
-        return idCardUrl;
-    }
-    public void setIdCardUrl(String idCardUrl) {
-        this.idCardUrl = idCardUrl;
-    }
+    @OneToMany(mappedBy = "user")
+    private List<Log> logs;
+
+    @OneToMany(mappedBy = "user")
+    private List<Feedback> feedbacks;
 }
