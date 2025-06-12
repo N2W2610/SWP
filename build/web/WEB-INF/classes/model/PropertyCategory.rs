@@ -1,0 +1,2 @@
+model.PropertyCategoryId
+model.PropertyCategory

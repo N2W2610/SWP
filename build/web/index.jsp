@@ -1,11 +1,19 @@
+<%-- 
+    Document   : index.jsp
+    Created on : Jun 12, 2025, 9:27:43 PM
+    Author     : Dung Thuy
+--%>
+
+
 <%@ page contentType="text/html; charset=UTF-8" language="java" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
 <!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FU House Finder</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>House Finder</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script>
         function toggleTheme() {
             document.body.classList.toggle('dark-mode');
@@ -50,6 +58,14 @@
             color: #f1f1f1;
         }
 
+        .dark-mode .navbar {
+            background-color: #1f1f1f !important;
+        }
+
+        .dark-mode .navbar-nav .nav-link {
+            color: #f1f1f1 !important;
+        }
+
         .navbar-nav button {
             background: none;
             border: none;
@@ -69,10 +85,10 @@
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav me-auto">
-                <li class="nav-item"><button class="nav-link" onclick="navigateTo('index.jsp')">Trang chủ</button></li>
-                <li class="nav-item"><button class="nav-link" onclick="navigateTo('search.jsp')">Tìm nhà</button></li>
-                <li class="nav-item"><button class="nav-link" onclick="navigateTo('login.jsp')">Đăng nhập</button></li>
-                <li class="nav-item"><button class="nav-link" onclick="navigateTo('register.jsp')">Đăng ký</button></li>
+                <li class="nav-item"><button class="nav-link" onclick="navigateTo('/HouseRentalWebApp')">Trang Chủ</button></li>
+                <li class="nav-item"><button class="nav-link" onclick="navigateTo('/house-search')">Tìm Nhà</button></li>
+                <li class="nav-item"><button class="nav-link" onclick="navigateTo('/views/guest_login.jsp')">Đăng Nhập</button></li>
+                <li class="nav-item"><button class="nav-link" onclick="navigateTo('/views/guest_register.jsp')">Đăng Ký</button></li>
             </ul>
             <button onclick="toggleTheme()" class="btn btn-outline-secondary">
                 <span id="themeText">Chế độ Tối</span>
@@ -83,36 +99,36 @@
     <!-- Hero Section -->
     <section class="hero">
         <div class="container">
-            <h1 class="display-4">Tìm nhà trọ dễ dàng cùng FU House Finder</h1>
-            <p class="lead">Hàng ngàn lựa chọn chất lượng dành cho sinh viên và người đi làm</p>
+            <h1 class="display-4">Tìm Nhà Trọ Dễ Dàng Với FU House Finder</h1>
+            <p class="lead">Khám phá hàng ngàn lựa chọn nhà trọ chất lượng cho sinh viên và người đi làm</p>
         </div>
     </section>
 
     <!-- Search Section -->
     <section class="py-5">
         <div class="container">
-            <form class="row g-3" onsubmit="event.preventDefault(); navigateTo('search.jsp');">
+            <form action="/house-search" method="get" class="row g-3">
                 <div class="col-md-4">
-                    <input type="text" class="form-control" placeholder="Nhập địa điểm, quận huyện...">
+                    <input type="text" class="form-control" name="location" placeholder="Nhập địa điểm, quận/huyện...">
                 </div>
                 <div class="col-md-3">
-                    <select class="form-select">
-                        <option>Khoảng giá</option>
-                        <option>Dưới 1 triệu</option>
-                        <option>1 - 3 triệu</option>
-                        <option>Trên 3 triệu</option>
+                    <select class="form-select" name="priceRange">
+                        <option value="">Khoảng Giá</option>
+                        <option value="0-1000000">Dưới 1 triệu</option>
+                        <option value="1000000-3000000">1 - 3 triệu</option>
+                        <option value="3000000-999999999">Trên 3 triệu</option>
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <select class="form-select">
-                        <option>Loại phòng</option>
-                        <option>Phòng trọ</option>
-                        <option>Chung cư mini</option>
-                        <option>Nhà nguyên căn</option>
+                    <select class="form-select" name="category">
+                        <option value="">Loại Nhà</option>
+                        <c:forEach var="category" items="${categories}">
+                            <option value="${category.id}">${category.name}</option>
+                        </c:forEach>
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <button class="btn btn-primary w-100" type="submit">Tìm kiếm</button>
+                    <button class="btn btn-primary w-100" type="submit">Tìm Kiếm</button>
                 </div>
             </form>
         </div>
@@ -121,47 +137,29 @@
     <!-- Featured Listings -->
     <section class="pb-5">
         <div class="container">
-            <h2 class="mb-4">Nhà trọ nổi bật</h2>
+            <h2 class="mb-4">Nhà Trọ Nổi Bật</h2>
             <div class="row g-4">
-                <%
-                    String[] roomTitles = {
-                        "Phòng trọ gần ĐH FPT",
-                        "Căn hộ mini Dịch Vọng",
-                        "Nhà nguyên căn Hà Đông",
-                        "Phòng trọ khép kín Cầu Giấy",
-                        "Phòng rộng 25m², đầy đủ tiện nghi",
-                        "Căn hộ mini giá rẻ khu Đại La"
-                    };
-                    String[] prices = {
-                        "1.500.000 VNĐ/tháng",
-                        "2.800.000 VNĐ/tháng",
-                        "5.000.000 VNĐ/tháng",
-                        "2.000.000 VNĐ/tháng",
-                        "2.300.000 VNĐ/tháng",
-                        "1.800.000 VNĐ/tháng"
-                    };
-                    for (int i = 0; i < roomTitles.length; i++) {
-                %>
-                <div class="col-md-4">
-                    <div class="card">
-                        <img src="https://source.unsplash.com/400x200/?room,<%= i %>" class="card-img-top" alt="Phòng <%= i+1 %>">
-                        <div class="card-body">
-                            <h5 class="card-title"><%= roomTitles[i] %></h5>
-                            <p class="card-text">Giá: <%= prices[i] %> - An ninh, sạch sẽ</p>
-                            <button class="btn btn-outline-primary" onclick="navigateTo('room-detail.jsp')">Xem chi tiết</button>
+                <c:forEach var="property" items="${featuredProperties}" varStatus="loop">
+                    <div class="col-md-4">
+                        <div class="card">
+                            <img src="${property.images[0].imageUrl != null ? property.images[0].imageUrl : 'https://source.unsplash.com/400x200/?room,' + loop.index}" class="card-img-top" alt="${property.title}">
+                            <div class="card-body">
+                                <h5 class="card-title">${property.title}</h5>
+                                <p class="card-text">Giá: ${property.price} VNĐ/tháng<br>${property.address}</p>
+                                <a href="/house-detail?id=${property.id}" class="btn btn-outline-primary">Xem Chi Tiết</a>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <% } %>
+                </c:forEach>
             </div>
         </div>
     </section>
 
     <!-- Footer -->
     <footer class="bg-light text-center py-4 mt-auto">
-        <p class="mb-0">&copy; 2025 FU House Finder. All rights reserved.</p>
+        <p class="mb-0">© 2025 FU House Finder. Mọi quyền được bảo lưu.</p>
     </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

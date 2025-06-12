@@ -1,0 +1,2 @@
+model.Favorite
+model.FavoriteId
